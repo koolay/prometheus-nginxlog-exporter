@@ -22,6 +22,7 @@ import (
 	"net/http"
 	"os"
 	"os/signal"
+	"regexp"
 	"strings"
 	"syscall"
 
@@ -45,7 +46,7 @@ type Metrics struct {
 func (m *Metrics) Init(cfg *config.NamespaceConfig) {
 	cfg.OrderLabels()
 
-	labels := []string{"method", "status"}
+	labels := []string{"method", "status", "handler"}
 	labels = append(labels, cfg.OrderedLabelNames...)
 
 	m.countTotal = prometheus.NewCounterVec(prometheus.CounterOpts{
@@ -104,7 +105,7 @@ func main() {
 		panic(err)
 	}
 
-	fmt.Printf("using configuration %s\n", cfg)
+	fmt.Printf("using configuration %v\n", cfg)
 
 	if cfg.Consul.Enable {
 		registrator, err := discovery.NewConsulRegistrator(&cfg)
@@ -149,7 +150,7 @@ func main() {
 
 				go func(nsCfg config.NamespaceConfig) {
 					staticLabelValues := nsCfg.OrderedLabelValues
-					labelValues := make([]string, len(staticLabelValues)+2)
+					labelValues := make([]string, len(staticLabelValues)+3)
 
 					for i := range staticLabelValues {
 						labelValues[i+2] = staticLabelValues[i]
@@ -168,6 +169,7 @@ func main() {
 						if request, err := entry.Field("request"); err == nil {
 							f := strings.Split(request, " ")
 							labelValues[0] = f[0]
+							labelValues[2] = regexp.MustCompile(`\?.*`).ReplaceAllString(f[1], "")
 						}
 
 						if s, err := entry.Field("status"); err == nil {
